@@ -36,6 +36,14 @@ var RootCmd = &cobra.Command{
 	},
 }
 
+func Execute() error {
+	return RootCmd.Execute()
+}
+
 var (
 	version bool
 )
+
+func init() {
+	RootCmd.Flags().BoolVarP(&version, "version", "v", false, "show version info")
+}
