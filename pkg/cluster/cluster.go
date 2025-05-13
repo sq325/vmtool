@@ -4,10 +4,11 @@ type Instance interface {
 	Start() error
 	Stop() error
 	Restart() error
+	Reload() error
+	Cmd() (string, error)
 }
 
 type Cluster interface {
-	Instance
 	Backup() error
 	Restore() error
 	List() error

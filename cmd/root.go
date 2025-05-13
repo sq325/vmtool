@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/sq325/vmtool/cmd/config"
+	"github.com/sq325/vmtool/cmd/operation"
 )
 
 var (
@@ -46,4 +48,9 @@ var (
 
 func init() {
 	RootCmd.Flags().BoolVarP(&version, "version", "v", false, "show version info")
+	RootCmd.PersistentFlags().String("config", "./config/vmtool.yml", "config file (default is vmtool.yml)")
+	
+
+	RootCmd.AddCommand(operation.DeployCmd)
+	RootCmd.AddCommand(config.ConfigCmd)
 }

@@ -1,5 +1,11 @@
 package config
 
+import (
+	"encoding/json"
+
+	"gopkg.in/yaml.v3"
+)
+
 type ConfigOpt func(*Config) error
 type Visitor interface {
 	Visit(ConfigOpt)
@@ -33,10 +39,8 @@ type Visitor interface {
 //
 // Auth defaults:
 //   - Vmauth.Addr: ":8427"
-func defaultOpt(c *Config) error {
+func DefaultOpt(c *Config) error {
 	// cluster
-	c.LogDir = "./logs"
-	c.PidFile = "./victoriametrics.pid"
 	c.ReplicationFactor = 1 // 默认福本数是1
 
 	// storage
@@ -62,6 +66,9 @@ func defaultOpt(c *Config) error {
 	}
 
 	// select
+	if c.Vmselect.Addr == "" {
+		c.Vmselect.Addr = ":8481"
+	}
 	if c.Vmselect.CachePath == "" {
 		c.Vmselect.CachePath = "./tmp/vmselect"
 	}
@@ -87,6 +94,7 @@ func defaultOpt(c *Config) error {
 	if c.Vmauth.Addr == "" {
 		c.Vmauth.Addr = ":8427"
 	}
+
 	return nil
 
 }
@@ -95,14 +103,13 @@ var _ Visitor = (*Config)(nil)
 
 type Config struct {
 	Nodes             []string    `json:"nodes" yaml:"nodes"` // list of all nodes
+	ReplicationFactor int         `json:"replication_factor" yaml:"replication_factor"`
 	Vmstorage         StorageConf `json:"vmstorage" yaml:"vmstorage"`
 	Vminsert          InsertConf  `json:"vminsert" yaml:"vminsert"`
 	Vmselect          SelectConf  `json:"vmselect" yaml:"vmselect"`
 	Vmauth            AuthConf    `json:"vmauth" yaml:"vmauth"`
-	ReplicationFactor int         `json:"replication_factor" yaml:"replication_factor"`
-	LogDir            string      `json:"log_dir" yaml:"log_dir"`
-	PidFile           string      `json:"pid_file" yaml:"pid_file"`
 }
+
 
 type StorageConf struct {
 	Retention         string `json:"retention" yaml:"retention"`
@@ -141,4 +148,24 @@ func (c *Config) Visit(opt ConfigOpt) {
 	if err := opt(c); err != nil {
 		panic(err)
 	}
+}
+
+// visitor
+
+// yaml
+func YamlMarshal(c *Config) ([]byte, error) {
+	return yaml.Marshal(c)
+}
+
+func YamlUnmarshal(data []byte, c *Config) error {
+	return yaml.Unmarshal(data, c)
+}
+
+// json
+func JsonMarshal(c *Config) ([]byte, error) {
+	return json.MarshalIndent(c, "", "  ")
+}
+
+func JsonUnmarshal(data []byte, c *Config) error {
+	return json.Unmarshal(data, c)
 }
