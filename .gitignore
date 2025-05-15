@@ -2,3 +2,4 @@ vmtool
 deploy.sh
 .DS_Store
 bin
+.vscode

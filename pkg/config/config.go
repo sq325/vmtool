@@ -2,46 +2,52 @@ package config
 
 import (
 	"encoding/json"
+	"io"
 
 	"gopkg.in/yaml.v3"
 )
 
-type ConfigOpt func(*Config) error
-type Visitor interface {
-	Visit(ConfigOpt)
+type ConfigVisitor func(*Config) error
+type Configer interface {
+	Visit(ConfigVisitor)
 }
 
-// defaultOpt sets default values for the Config if not explicitly specified.
-// It populates the configuration with the following defaults:
-//
-// Cluster defaults:
-//   - LogDir: "./logs"
-//   - PidFile: "./victoriametrics.pid"
-//   - ReplicationFactor: 1
-//
-// Storage defaults:
-//   - Vmstorage.Addr: ":8482"
-//   - Vmstorage.Retention: "180d"
-//   - Vmstorage.DataPath: "./vmstorage-data"
-//   - Vmstorage.InsertAddr: ":8400"
-//   - Vmstorage.SelectAddr: ":8401"
-//   - Vmstorage.MinScrapeInterval: "15s"
-//
-// Select defaults:
-//   - Vmselect.CachePath: "./tmp/vmselect"
-//   - Vmselect.MinScrapeInterval: "15s"
-//   - Vmselect.LatencyOffset: same as MinScrapeInterval
-//   - Vmselect.ReplicationFactor: same as global ReplicationFactor
-//
-// Insert defaults:
-//   - Vminsert.Addr: ":8480"
-//   - Vminsert.ReplicationFactor: same as global ReplicationFactor
-//
-// Auth defaults:
-//   - Vmauth.Addr: ":8427"
-func DefaultOpt(c *Config) error {
+// defaultVisitor
+func DefaultVisitor(c *Config) error {
 	// cluster
 	c.ReplicationFactor = 1 // 默认福本数是1
+
+	defaultStorage(c)
+	defaultSelect(c)
+	defaultInsert(c)
+	defaultAuth(c)
+	defaultDaemon(c)
+
+	return nil
+
+}
+
+func defaultSelect(c *Config) error {
+	// select
+	if c.Vmselect.Addr == "" {
+		c.Vmselect.Addr = ":8481"
+	}
+	if c.Vmselect.CacheDir == "" {
+		c.Vmselect.CacheDir = "./tmp/vmselect"
+	}
+	if c.Vmselect.MinScrapeInterval == "" {
+		c.Vmselect.MinScrapeInterval = "15s"
+	}
+	if c.Vmselect.LatencyOffset == "" {
+		c.Vmselect.LatencyOffset = c.Vmselect.MinScrapeInterval
+	}
+	if c.ReplicationFactor != 0 {
+		c.Vmselect.ReplicationFactor = c.ReplicationFactor
+	}
+	return nil
+}
+
+func defaultStorage(c *Config) error {
 
 	// storage
 	if c.Vmstorage.Addr == "" {
@@ -50,8 +56,8 @@ func DefaultOpt(c *Config) error {
 	if c.Vmstorage.Retention == "" {
 		c.Vmstorage.Retention = "180d"
 	}
-	if c.Vmstorage.DataPath == "" {
-		c.Vmstorage.DataPath = "./vmstorage-data"
+	if c.Vmstorage.DataDir == "" {
+		c.Vmstorage.DataDir = "./vmstorage-data"
 	}
 	if c.Vmstorage.InsertAddr == "" {
 		c.Vmstorage.InsertAddr = ":8400"
@@ -64,24 +70,10 @@ func DefaultOpt(c *Config) error {
 	if c.Vmstorage.MinScrapeInterval == "" {
 		c.Vmstorage.MinScrapeInterval = "15s"
 	}
+	return nil
+}
 
-	// select
-	if c.Vmselect.Addr == "" {
-		c.Vmselect.Addr = ":8481"
-	}
-	if c.Vmselect.CachePath == "" {
-		c.Vmselect.CachePath = "./tmp/vmselect"
-	}
-	if c.Vmselect.MinScrapeInterval == "" {
-		c.Vmselect.MinScrapeInterval = "15s"
-	}
-	if c.Vmselect.LatencyOffset == "" {
-		c.Vmselect.LatencyOffset = c.Vmselect.MinScrapeInterval
-	}
-	if c.ReplicationFactor != 0 {
-		c.Vmselect.ReplicationFactor = c.ReplicationFactor
-	}
-
+func defaultInsert(c *Config) error {
 	// insert
 	if c.Vminsert.Addr == "" {
 		c.Vminsert.Addr = ":8480"
@@ -90,16 +82,45 @@ func DefaultOpt(c *Config) error {
 		c.Vminsert.ReplicationFactor = c.ReplicationFactor
 	}
 
+	return nil
+}
+
+func defaultAuth(c *Config) error {
 	// vmauth
 	if c.Vmauth.Addr == "" {
 		c.Vmauth.Addr = ":8427"
 	}
-
 	return nil
-
 }
 
-var _ Visitor = (*Config)(nil)
+func defaultDaemon(c *Config) error {
+	// log
+	if c.LogDir == "" {
+		c.LogDir = "./logs"
+	}
+	if c.LogLevel == "" {
+		c.LogLevel = "info"
+	}
+
+	// tmp
+	if c.TmpDir == "" {
+		c.TmpDir = "./tmp"
+	}
+
+	// config dir
+	if c.ConfigDir == "" {
+		c.ConfigDir = "./config"
+	}
+
+	// bin dir
+	if c.BinDir == "" {
+		c.BinDir = "./bin"
+	}
+
+	return nil
+}
+
+var _ Configer = (*Config)(nil)
 
 type Config struct {
 	Nodes             []string    `json:"nodes" yaml:"nodes"` // list of all nodes
@@ -108,43 +129,17 @@ type Config struct {
 	Vminsert          InsertConf  `json:"vminsert" yaml:"vminsert"`
 	Vmselect          SelectConf  `json:"vmselect" yaml:"vmselect"`
 	Vmauth            AuthConf    `json:"vmauth" yaml:"vmauth"`
+
+	LogDir   string `json:"log_dir" yaml:"log_dir"`     // directory where logs are stored
+	LogLevel string `json:"log_level" yaml:"log_level"` // log level, e.g., "info", "debug", "error"
+
+	BackupDir string `json:"backup_dir" yaml:"backup_dir"`
+	TmpDir    string `json:"tmp_dir" yaml:"tmp_dir"`       // temporary directory for operations
+	ConfigDir string `json:"config_dir" yaml:"config_dir"` // directory where configuration files are stored
+	BinDir    string `json:"bin_dir" yaml:"bin_dir"`       // directory where binaries are located
 }
 
-
-type StorageConf struct {
-	Retention         string `json:"retention" yaml:"retention"`
-	Addr              string `json:"addr" yaml:"addr"`
-	DataPath          string `json:"data_path" yaml:"data_path"`
-	InsertAddr        string `json:"insert_addr" yaml:"insert_addr"`
-	SelectAddr        string `json:"select_addr" yaml:"select_addr"`
-	MinScrapeInterval string `json:"min_scrape_interval" yaml:"min_scrape_interval"`
-}
-
-type SelectConf struct {
-	Addr              string `json:"addr" yaml:"addr"`
-	CachePath         string `json:"cache_path" yaml:"cache_path"`
-	MinScrapeInterval string `json:"min_scrape_interval" yaml:"min_scrape_interval"`
-	LatencyOffset     string `json:"latency_offset" yaml:"latency_offset"`
-	ReplicationFactor int    `json:"-" yaml:"-"`
-	StorageAddr       string `json:"-" yaml:"-"`
-}
-
-type InsertConf struct {
-	Addr              string `json:"addr" yaml:"addr"`
-	ReplicationFactor int    `json:"replication_factor" yaml:"replication_factor"`
-	StorageAddr       string `json:"-" yaml:"-"`
-}
-
-type AuthConf struct {
-	Addr       string `json:"addr" yaml:"addr"`
-	ConfigPath string `json:"config_path" yaml:"config_path"`
-}
-
-type BackupConf struct {
-	BackupPath string `json:"backup_path" yaml:"backup_path"`
-}
-
-func (c *Config) Visit(opt ConfigOpt) {
+func (c *Config) Visit(opt ConfigVisitor) {
 	if err := opt(c); err != nil {
 		panic(err)
 	}
@@ -153,19 +148,62 @@ func (c *Config) Visit(opt ConfigOpt) {
 // visitor
 
 // yaml
-func YamlMarshal(c *Config) ([]byte, error) {
+func (c *Config) YamlMarshal() ([]byte, error) {
 	return yaml.Marshal(c)
 }
 
-func YamlUnmarshal(data []byte, c *Config) error {
+func (c *Config) YamlUnmarshal(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+func (c *Config) YamlDecoder(r io.Reader) error {
+	decoder := yaml.NewDecoder(r)
+	return decoder.Decode(c)
+}
+
 // json
-func JsonMarshal(c *Config) ([]byte, error) {
+func (c *Config) JsonMarshal() ([]byte, error) {
 	return json.MarshalIndent(c, "", "  ")
 }
 
-func JsonUnmarshal(data []byte, c *Config) error {
+func (c *Config) JsonUnmarshal(data []byte) error {
 	return json.Unmarshal(data, c)
+}
+
+type StorageConf struct {
+	Retention         string   `json:"retention" yaml:"retention"`
+	Addr              string   `json:"addr" yaml:"addr"`
+	DataDir           string   `json:"data_dir" yaml:"data_dir"`
+	InsertAddr        string   `json:"insert_addr" yaml:"insert_addr"`
+	SelectAddr        string   `json:"select_addr" yaml:"select_addr"`
+	MinScrapeInterval string   `json:"min_scrape_interval" yaml:"min_scrape_interval"`
+	Args              []string `json:"args" yaml:"args"` // 其他参数
+}
+
+type SelectConf struct {
+	Addr              string   `json:"addr" yaml:"addr"`
+	CacheDir          string   `json:"cache_dir" yaml:"cache_dir"`
+	MinScrapeInterval string   `json:"min_scrape_interval" yaml:"min_scrape_interval"`
+	LatencyOffset     string   `json:"latency_offset" yaml:"latency_offset"`
+	ReplicationFactor int      `json:"-" yaml:"-"`
+	StorageAddr       string   `json:"-" yaml:"-"`
+	Args              []string `json:"args" yaml:"args"` // 其他参数
+}
+
+type InsertConf struct {
+	Addr              string   `json:"addr" yaml:"addr"`
+	ReplicationFactor int      `json:"replication_factor" yaml:"replication_factor"`
+	StorageAddr       string   `json:"-" yaml:"-"`
+	Args              []string `json:"args" yaml:"args"` // 其他参数
+}
+
+type AuthConf struct {
+	Addr      string   `json:"addr" yaml:"addr"`
+	ConfigDir string   `json:"config_dir" yaml:"config_dir"`
+	Args      []string `json:"args" yaml:"args"` // 其他参数
+}
+
+type BackupConf struct {
+	BackupDir string   `json:"backup_dir" yaml:"backup_dir"`
+	Args      []string `json:"args" yaml:"args"` // 其他参数
 }
