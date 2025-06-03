@@ -1,4 +1,4 @@
-.PYONY: arm linux vendor-build linux-arm build darwin windows run help
+.PHONY: arm linux vendor-build linux-arm build darwin windows run help
 
 buildTime ?= $(shell date '+%Y-%m-%d_%H:%M:%S')
 modName := $(shell go list -m)

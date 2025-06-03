@@ -1,17 +1,22 @@
 package cluster
 
 import (
-	"errors"
-
+	"github.com/sq325/vmtool/pkg/cluster/instance"
+	"github.com/sq325/vmtool/pkg/cluster/vminsert"
+	"github.com/sq325/vmtool/pkg/cluster/vmselect"
 	"github.com/sq325/vmtool/pkg/cluster/vmstorage"
 )
 
+// type Option interface {
+// 	Validate() error
+// }
+
 type Option interface {
-	Validate() error
+	vmstorage.Opt | vmselect.Opt | vminsert.Opt
 }
 
-type Builder interface {
-	Build(Option) (any, error)
+type Builder[T Option] interface {
+	Build(T) (instance.Instancer, error)
 }
 
 type StorageBuilder struct{}
@@ -19,18 +24,12 @@ type SelectBuilder struct{}
 type InsertBuilder struct{}
 type AuthBuilder struct{}
 
-var _ Builder = &StorageBuilder{}
+var _ Builder[vmstorage.Opt] = &StorageBuilder{}
 
-func (s *StorageBuilder) Build(opt Option) (any, error) {
+func (s *StorageBuilder) Build(opt vmstorage.Opt) (instance.Instancer, error) {
 	if err := opt.Validate(); err != nil {
 		return nil, err
 	}
 
-	// 假设 opt 是 vmstorage.Opt 类型
-	vmStorageOpt, ok := opt.(vmstorage.Opt)
-	if !ok {
-		return nil, errors.New("无效的存储配置选项")
-	}
-
-	return vmstorage.New(vmStorageOpt), nil
+	return vmstorage.New(opt), nil
 }

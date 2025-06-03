@@ -2,37 +2,63 @@ package cluster
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sq325/cmdDaemon/daemon"
+	"github.com/sq325/vmtool/pkg/cluster/instance"
 )
 
-type Instancer interface {
-	WithLogger(logger *slog.Logger) Instancer
-	WithMetricsRegistry(registry prometheus.Registerer) Instancer
+type operator struct {
+}
 
-	Start() error
-	Stop() error
-	Restart() error
+// hook
+func (operator) PreStart(ins instance.Instancer) error {
+	cmd := ins.Cmd()
+	logdir := ins.LogDir()
+	if logdir != "" {
+		f, err := os.Open(filepath.Join(logdir, ins.Name()+".log"))
+		if err != nil {
+			cmd.Stdout = f
+			cmd.Stderr = f
+		}
+	}
 
-	Reload() error
-	Health() error
-	Port() int
-	MetricsPath() string
-	HealthPath() string
+	return nil
+}
 
-	Path() string // /app/bin/vmstorage
-	Cmd() (string, error)
+func (operator) Start(ins instance.Instancer) error {
+
+	return nil
+}
+
+// hook
+func (operator) PostStart(ins instance.Instancer) error {
+	return nil
+}
+
+func (operator) Stop(ins instance.Instancer) error {
+	return nil
+}
+
+func (operator) Status(ins instance.Instancer) error {
+	return nil
+}
+
+func (operator) Restart(ins instance.Instancer) error {
+	return nil
+}
+
+type Instrumenter interface {
+	WithLogger(logger *slog.Logger)
+	WithMetricsRegistry(registry prometheus.Registerer)
 }
 
 type Cluster interface {
-	Backup() error
-	Restore() error
-	List() error
-
-	Reload() error
-	Health() error
-
-	Cmds() error
+	Start() error
 }
 
-type cluster struct{}
+type vmcluster struct {
+	d *daemon.Daemon
+}

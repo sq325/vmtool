@@ -2,6 +2,8 @@
 package config
 
 import (
+	"path/filepath"
+
 	"github.com/sq325/vmtool/pkg/cluster/vmauth"
 	"github.com/sq325/vmtool/pkg/cluster/vminsert"
 	"github.com/sq325/vmtool/pkg/cluster/vmselect"
@@ -28,12 +30,15 @@ func NewStorageAdapter(cfg *Config) *StorageAdapter {
 // AdaptToOpt 将 Config 转换为 vmstorage.Opt
 func (a *StorageAdapter) AdaptToOpt() any {
 	return vmstorage.Opt{
+		Path:              filepath.Join(a.config.BinDir, "vmstorage"),
 		Addr:              a.config.Vmstorage.Addr,
-		DataDir:           a.config.Vmstorage.DataDir,
 		InsertAddr:        a.config.Vmstorage.InsertAddr,
 		SelectAddr:        a.config.Vmstorage.SelectAddr,
 		MinScrapeInterval: a.config.Vmstorage.MinScrapeInterval,
+		DataDir:           a.config.Vmstorage.DataDir,
 		RetentionPeriod:   a.config.Vmstorage.Retention,
+		Args:              a.config.Vmstorage.Args,
+		LogDir:            a.config.LogDir,
 	}
 }
 
